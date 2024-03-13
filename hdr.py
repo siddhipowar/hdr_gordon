@@ -47,10 +47,6 @@ def process_frames(frames):
 
     hdr_normalized = (hdr_blended - hdr_blended.min()) / (hdr_blended.max() - hdr_blended.min())
 
-    # # Apply unsharp masking or other detail enhancement techniques here.
-    # # Example: Unsharp masking (consider adjusting the parameters).
-    # hdr_enhanced = cv2.addWeighted(hdr_normalized, 1.5, cv2.GaussianBlur(hdr_normalized, (0,0), 3), -0.5, 0)
-
     # Apply CLAHE
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
     hdr_enhanced = clahe.apply(np.uint8(hdr_normalized*255)) / 255.0  # Assuming the image is grayscale; adjust if not.
