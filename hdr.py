@@ -16,36 +16,39 @@ def capture_frame(cam):
     return frame_array
 
 def process_frames(frames):
-    """
-    Process the short and long integration time frames to create an HDR-like image
-    based on specified algorithm rules, using efficient NumPy operations.
-    """
-    # Convert frames to 16-bit to prevent overflow during processing
+    # Assuming frames[0] is the short exposure and frames[1] is the long exposure
+    # Convert frames to 32-bit float for processing
     short_frame = frames[0].astype(np.float32)
     long_frame = frames[1].astype(np.float32)
-
-    # Initialize an HDR image array
-    hdr_image = np.zeros_like(short_frame, dtype=np.uint16)
-
-    # Apply conditions
-    # Condition a) If one pixel is above 255 or 0 and the other is valid, then use the other's range & intensity data
+    
+    # Apply initial conditions to handle saturated and underexposed pixels
     valid_short = (short_frame > 0) & (short_frame <= 255)
-    valid_long = (long_frame > 0) & (long_frame <= 255)
-
-    hdr_image = np.where(valid_short & ~valid_long, short_frame, hdr_image)
-    hdr_image = np.where(valid_long & ~valid_short, long_frame, hdr_image)
-
-    # Conditions b), d), e), and f) with c) overarching intensity scaling
+    valid_long = (long_frame > 0)
+    hdr_image = np.where(valid_short & ~valid_long, short_frame, long_frame)
+    hdr_image = np.where(valid_long & (long_frame <= 255), long_frame, hdr_image)
+    
+    # Apply special conditions based on the intensity
     hdr_image = np.where((long_frame > 200) & valid_short, short_frame, hdr_image)
     hdr_image = np.where((short_frame < 3) & valid_long, long_frame * 20, hdr_image)
 
-    hdr_image = np.where(long_frame == 255, 240, hdr_image)  # 12 on the short_frame scaled up as per e)
-    hdr_image = np.where(short_frame == 1, 20, hdr_image)  # f)
+    # Weighted average combination of short and long frames for the rest of the pixels
+    # Maximum intensity for long exposure images, adjust if different
+    max_intensity_long = 5100
+    # Define weight threshold for HDR combination
+    weight_threshold = 200
+    # Normalize frames to the same intensity scale
+    short_norm = short_frame / 255
+    long_norm = hdr_image / max_intensity_long
+    # Calculate the weights for the long exposure based on intensity
+    weights_long = np.clip(long_norm * (1 / weight_threshold), 0, 1)
+    weights_short = 1 - weights_long
+    # Blend the two exposures based on weights
+    hdr_blended = short_norm * weights_short + long_norm * weights_long
 
-    hdr_image_rescaled = (hdr_image / np.max(hdr_image)) * 5100
-    hdr_image_rescaled = np.clip(hdr_image_rescaled, 0, 5100).astype(np.uint16)
-
-    return hdr_image_rescaled
+    # Normalize the blended HDR image to utilize the full dynamic range
+    hdr_normalized = (hdr_blended - np.min(hdr_blended)) / (np.max(hdr_blended) - np.min(hdr_blended))
+    
+    return hdr_normalized
 
 def main():
     serial = "203001c"
@@ -67,7 +70,7 @@ def main():
             # Combine frames into an HDR image
         hdr_image = process_frames(frames)
 
-        hdr_display = np.clip(hdr_image, 0, 255).astype('uint8')
+        hdr_display = (hdr_image *255).astype('uint8')
         
         
         cv2.imshow('HDR Image Stream', hdr_display)
