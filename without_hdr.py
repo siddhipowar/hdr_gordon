@@ -3,7 +3,7 @@ import numpy as np
 import cv2
 
 def main():
-    serial = "203001c"
+    serial = "202004d"
     cam = tof.KeaCamera(serial=serial)
     # Select INTENSITY stream only
     tof.selectStreams(cam, [tof.FrameType.INTENSITY])
@@ -12,6 +12,7 @@ def main():
     camera_config = user_config.toCameraConfig(cam)
     cam.setCameraConfig(camera_config)
     cam.start()
+    print(cam.getCalibration().getCalibratedFrequencies())
     
     while cam.isStreaming():
         frame = cam.getFrames()

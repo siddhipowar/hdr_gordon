@@ -2,13 +2,38 @@ import chronoptics.tof as tof
 import numpy as np
 import cv2
 import time
+import matplotlib.pyplot as plt
 
-def set_camera_integration_time(cam, integration_time):
-    # Configure the camera with the new integration time without restarting the stream
-    user_config = tof.UserConfig()
-    user_config.setIntegrationTime(integration_time)
-    camera_config = user_config.toCameraConfig(cam)
-    cam.setCameraConfig(camera_config)
+def plot_histograms(short_frame, long_frame, hdr_image):
+    short = short_frame.flatten()
+    long = long_frame.flatten()
+    hdr = hdr_image.flatten()
+
+    plt.figure(figsize=(18, 6))
+
+    # Short Frame Histogram
+    plt.subplot(1, 3, 1)
+    plt.hist(short, bins=50, color='blue', alpha=0.6)
+    plt.title('Short Frame Histogram')
+    plt.xlabel('Intensity Value')
+    plt.ylabel('Frequency')
+
+    # Long Frame Histogram
+    plt.subplot(1, 3, 2)
+    plt.hist(long, bins=50, color='red', alpha=0.6)
+    plt.title('Long Frame Histogram')
+    plt.xlabel('Intensity Value')
+    plt.ylabel('Frequency')
+
+    # HDR Image Histogram
+    plt.subplot(1, 3, 3)
+    plt.hist(hdr, bins=50, color='green', alpha=0.6)
+    plt.title('HDR Image Histogram')
+    plt.xlabel('Intensity Value')
+    plt.ylabel('Frequency')
+
+    plt.tight_layout()
+    plt.show()
 
 def capture_frame(cam):
     # Capture a single frame without stopping the camera
@@ -16,15 +41,11 @@ def capture_frame(cam):
     frame_array = np.asarray(frames[0], dtype=np.uint8)
     return frame_array
 
-import numpy as np
-
-import numpy as np
-import cv2  # Assuming OpenCV is available for alignment, unsharp masking, and CLAHE
 
 def process_frames(frames):
-    # Assuming frames[0] and frames[1] are already aligned; if not, align them first.
-    short_frame = frames[0].astype(np.float32)
-    long_frame = frames[1].astype(np.float32)
+
+    short_frame = frames[0].astype(np.float64)
+    long_frame = frames[1].astype(np.float64)
 
     short_frame /= 255.0
     long_frame /= 5100.0
@@ -57,7 +78,7 @@ def process_frames(frames):
 
 
 def main():
-    serial = "203001c"
+    serial = "202004d"
     cam = tof.KeaCamera(serial=serial)
     # Select INTENSITY stream only
     tof.selectStreams(cam, [tof.FrameType.INTENSITY])
@@ -66,22 +87,29 @@ def main():
     while cam.isStreaming():
 
         time.sleep(2)
-        integration_times = [tof.IntegrationTime.SHORT, tof.IntegrationTime.LONG]
+        # integration_times = [tof.IntegrationTime.SHORT, tof.IntegrationTime.LONG]
         frames = []
 
-        # Assuming you have a way to set integration times outside this loop since
-        # changing settings on-the-fly isn't supported. For demonstration, we capture frames sequentially.
-        for integration_time in integration_times:
-            user_config = tof.UserConfig()
-            time.sleep(2)
-            user_config.setIntegrationTime(integration_time)
-            camera_config = user_config.toCameraConfig(cam)
-            cam.setCameraConfig(camera_config)
-            time.sleep(2)
-            frame = capture_frame(cam)
-            frames.append(frame)
-            # Combine frames into an HDR image
+        config = cam.getCameraConfig()
+        config.reset()
+        config.setIntegrationTime(0, [50, 50, 50, 50])
+        cam.setCameraConfig(config)
+        time.sleep(2)
+        frame1 = np.copy(capture_frame(cam))
+
+        config = cam.getCameraConfig()
+        config.reset()
+        config.setIntegrationTime(0, [1000, 1000, 1000, 1000])
+        cam.setCameraConfig(config)
+        time.sleep(2)
+        frame2 = capture_frame(cam)
+
+        frames = [frame1, frame2]
+
+        # Combine frames into an HDR image
         hdr_image = process_frames(frames)
+
+        plot_histograms(frame1, frame2, hdr_image)
         
         cv2.imshow('HDR Image Stream', hdr_image)
         if cv2.waitKey(1) & 0xFF == ord('q'):  # Press 'q' to quit
