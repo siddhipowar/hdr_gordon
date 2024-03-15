@@ -1,6 +1,7 @@
 import chronoptics.tof as tof
 import numpy as np
 import cv2
+import matplotlib.pyplot as plt
 
 def main():
     serial = "202004d"
@@ -20,6 +21,13 @@ def main():
 
         hdr_display = np.clip(frame_array, 0, 255).astype('uint8')
         
+        medium = frame_array.flatten()
+        plt.hist(medium, bins=50, color='blue', alpha=0.6)
+        plt.title('Frame Histogram')
+        plt.xlabel('Intensity Value')
+        plt.ylabel('Frequency')
+        plt.show()
+
         cv2.imshow('HDR Image Stream', hdr_display)
         if cv2.waitKey(1) & 0xFF == ord('q'):  # Press 'q' to quit
             break

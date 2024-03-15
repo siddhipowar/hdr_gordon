@@ -44,33 +44,31 @@ def capture_frame(cam):
 
 def process_frames(frames):
 
-    short_frame = frames[0].astype(np.float64)
-    long_frame = frames[1].astype(np.float64)
+    short_frame = frames[0].astype(np.float32)
+    long_frame = frames[1].astype(np.float32)
 
     short_frame /= 255.0
-    long_frame /= 5100.0
+    long_frame /= 255.0
 
-    # Update mask thresholds based on image analysis (optional step not shown).
-
-    mask_saturated_short = short_frame > 0.9
-    mask_shadow_long = long_frame < 0.1
+    mask_saturated_short = short_frame > 0.8
+    mask_shadow_long = long_frame < 0.2
 
     combined = np.where(mask_saturated_short, long_frame, short_frame)
     combined = np.where(mask_shadow_long, short_frame, combined)
 
     combined_normalized = (combined - combined.min()) / (combined.max() - combined.min())
 
-    sigmoid_strength = 6
+    sigmoid_strength = 5
     weights = 1 / (1 + np.exp(sigmoid_strength * (combined_normalized - 0.5)))
-    weights = np.clip(weights, 0.3, 0.7)
+    weights = np.clip(weights, 0.1, 0.9)
 
     hdr_blended = short_frame * (1 - weights) + long_frame * weights
 
     hdr_normalized = (hdr_blended - hdr_blended.min()) / (hdr_blended.max() - hdr_blended.min())
 
     # Apply CLAHE
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-    hdr_enhanced = clahe.apply(np.uint8(hdr_normalized*255)) / 255.0  # Assuming the image is grayscale; adjust if not.
+    clahe = cv2.createCLAHE(clipLimit=1.0, tileGridSize=(8,8))
+    hdr_enhanced = clahe.apply(np.uint8(hdr_normalized*255)) / 255.0  
 
     hdr_display = np.clip(hdr_enhanced * 255, 0, 255).astype(np.uint8)
 
