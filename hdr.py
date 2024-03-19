@@ -44,36 +44,43 @@ def capture_frame(cam):
 
 def process_frames(frames):
 
+    # Parameters for processing
+    overexposure_threshold = 0.9
+
     short_frame = frames[0].astype(np.float32)
     long_frame = frames[1].astype(np.float32)
 
+    # Normalize the frames
     short_frame /= 255.0
     long_frame /= 255.0
 
-    mask_saturated_short = short_frame > 0.8
-    mask_shadow_long = long_frame < 0.2
+    # Identify overexposed regions in both frames
+    mask_overexposed = (short_frame > overexposure_threshold) & (long_frame > overexposure_threshold)
 
-    combined = np.where(mask_saturated_short, long_frame, short_frame)
-    combined = np.where(mask_shadow_long, short_frame, combined)
+    # Create a smoothed version of the long exposure frame using Gaussian blur
+    long_frame_smoothed = cv2.GaussianBlur(long_frame, (5, 5), 0)
 
-    combined_normalized = (combined - combined.min()) / (combined.max() - combined.min())
+    # Blend the original and the smoothed frames
+    combined = np.where(mask_overexposed, long_frame_smoothed, np.maximum(short_frame, long_frame))
 
-    sigmoid_strength = 5
-    weights = 1 / (1 + np.exp(sigmoid_strength * (combined_normalized - 0.5)))
-    weights = np.clip(weights, 0.1, 0.9)
+    # Apply dynamic range compression to the overexposed regions
+    combined[mask_overexposed] = 1.0 - (1.0 - combined[mask_overexposed])**0.5
 
-    hdr_blended = short_frame * (1 - weights) + long_frame * weights
+    # Normalize the combined image
+    combined_normalized = cv2.normalize(combined, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
 
-    hdr_normalized = (hdr_blended - hdr_blended.min()) / (hdr_blended.max() - hdr_blended.min())
+    # Apply CLAHE to the normalized combined image
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+    hdr_enhanced = clahe.apply(np.uint8(combined_normalized * 255.0)) / 255.0  
 
-    # Apply CLAHE
-    clahe = cv2.createCLAHE(clipLimit=1.0, tileGridSize=(8,8))
-    hdr_enhanced = clahe.apply(np.uint8(hdr_normalized*255)) / 255.0  
+    # Gamma correction can still be applied if needed
+    gamma = 0.8
+    combined_gamma_corrected = np.power(hdr_enhanced, gamma)
 
-    hdr_display = np.clip(hdr_enhanced * 255, 0, 255).astype(np.uint8)
+    # Convert to 8-bit format for display
+    hdr_display = np.clip(combined_gamma_corrected * 255, 0, 255).astype(np.uint8)
 
     return hdr_display
-
 
 def main():
     serial = "202004d"
