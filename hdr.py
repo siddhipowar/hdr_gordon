@@ -36,7 +36,7 @@ def plot_histograms(short_frame, long_frame, hdr_image):
     plt.show()
 
 def capture_frame(cam):
-    # Capture a single frame without stopping the camera
+    # Capture a single frame
     frames = cam.getFrames()
     frame_array = np.asarray(frames[0], dtype=np.uint8)
     return frame_array
@@ -44,36 +44,36 @@ def capture_frame(cam):
 
 def process_frames(frames):
 
-    # Parameters for processing
+    # Threshold value to determine overexposure
     overexposure_threshold = 0.9
 
     short_frame = frames[0].astype(np.float32)
     long_frame = frames[1].astype(np.float32)
 
-    # Normalize the frames
+    # Frames converted to 0 - 1 range for further processing 
     short_frame /= 255.0
     long_frame /= 255.0
 
-    # Identify overexposed regions in both frames
+    # Boolean nmask for to detect where both short and long frames are overexposed based on the threshold
     mask_overexposed = (short_frame > overexposure_threshold) & (long_frame > overexposure_threshold)
 
-    # Create a smoothed version of the long exposure frame using Gaussian blur
+    # Gaussian blur to reduce noise and creates smooth version of the long frame
     long_frame_smoothed = cv2.GaussianBlur(long_frame, (5, 5), 0)
 
-    # Blend the original and the smoothed frames
+    # Combines short and long frames. It uses long frame when there is overexposure and uses maximum between short and long frames in other areas
     combined = np.where(mask_overexposed, long_frame_smoothed, np.maximum(short_frame, long_frame))
 
-    # Apply dynamic range compression to the overexposed regions
+    # Applies dynamic range compression to overexposed regions to reduce intensity and enhance details
     combined[mask_overexposed] = 1.0 - (1.0 - combined[mask_overexposed])**0.5
 
-    # Normalize the combined image
+    # Normalizes the combines image to have pixel values between 0 and 1 which is useful for further processing and maintaining consistent intensity levels
     combined_normalized = cv2.normalize(combined, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
 
-    # Apply CLAHE to the normalized combined image
+    # Apply CLAHE to enhance contrast
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
     hdr_enhanced = clahe.apply(np.uint8(combined_normalized * 255.0)) / 255.0  
 
-    # Gamma correction can still be applied if needed
+    # Gamma correction to enhance brightness
     gamma = 0.8
     combined_gamma_corrected = np.power(hdr_enhanced, gamma)
 
