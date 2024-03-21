@@ -99,14 +99,14 @@ def main():
         config.reset()
         config.setIntegrationTime(0, [50, 50, 50, 50])
         cam.setCameraConfig(config)
-        time.sleep(2)
+        time.sleep(2) # Give time for configuration change to take effect
         frame1 = np.copy(capture_frame(cam))
 
         config = cam.getCameraConfig()
         config.reset()
         config.setIntegrationTime(0, [1000, 1000, 1000, 1000])
         cam.setCameraConfig(config)
-        time.sleep(2)
+        time.sleep(2) # Give time for configuration change to take effect
         frame2 = capture_frame(cam)
 
         frames = [frame1, frame2]
